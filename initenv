@@ -1,0 +1,84 @@
+#!/usr/bin/php
+<?php
+$path = exec('pwd');
+$site = pathinfo($path, PATHINFO_BASENAME);
+
+$example = file_get_contents($path . '/.env.example');
+$params = explode(PHP_EOL, $example);
+
+$new_params = [];
+$env = [];
+$is_app = true;
+
+$db_conf = [
+	'host' => '127.0.0.1',
+	'user' => 'root',
+	'pass' => '0000',
+];
+
+$db_prefix = 'order_';
+
+foreach ($params as $param) {
+	if ($is_app && mb_strlen($param) == 0) {
+		$new_params[ 'APP_LOG' ] = 'daily';
+
+		$is_app = false;
+	}
+
+	if (mb_strlen($param) == 0) {
+		$new_params[] = NULL;
+	} else {
+		list($name, $value) = explode('=', $param);
+
+		switch ($name) {
+			case 'APP_URL':
+				$new_params[ 'APP_URL' ] = 'http://' . $site . '.la';
+				break;
+			case 'APP_KEY':
+				$new_params[ 'APP_KEY' ] = 'base64:' . base64_encode(random_bytes(32));
+				break;
+			case 'DB_HOST':
+				$new_params[ 'DB_HOST' ] = $db_conf[ 'host' ];
+				break;
+			case 'DB_DATABASE':
+				$new_params[ 'DB_DATABASE' ] = $db_prefix . $site;
+				break;
+			case 'DB_USERNAME':
+				$new_params[ 'DB_USERNAME' ] = $db_conf[ 'user' ];
+				break;
+			case 'DB_PASSWORD':
+				$new_params[ 'DB_PASSWORD' ] = $db_conf[ 'pass' ];
+				break;
+			case 'MAIL_HOST':
+				$new_params[ 'MAIL_HOST' ] = 'smtp.mailtrap.io';
+				break;
+			case 'MAIL_USERNAME':
+				$new_params[ 'MAIL_USERNAME' ] = 'a17ebb16993414';
+				break;
+			case 'MAIL_PASSWORD':
+				$new_params[ 'MAIL_PASSWORD' ] = '16e654ac4ce19c';
+				break;
+			case 'MAIL_ENCRYPTION':
+				$new_params[ 'MAIL_ENCRYPTION' ] = 'tls';
+				break;
+			default:
+				$new_params[ $name ] = $value;
+		}
+	}
+}
+
+foreach ($new_params as $new_name => $new_value) {
+	if (!is_null($new_value)) {
+		$env[] = implode('=', [$new_name, $new_value]);
+	} else {
+		$env[] = NULL;
+	}
+}
+
+$command = sprintf(
+	'mysql -h %s -u%s -p%s -e "CREATE DATABASE IF NOT EXISTS \`%s%s\` CHARACTER SET utf8 COLLATE utf8_general_ci"',
+	$db_conf[ 'host' ], $db_conf[ 'user' ], $db_conf[ 'pass' ], $db_prefix, $site
+);
+exec($command);
+
+file_put_contents($path . '/.env', implode(PHP_EOL,$env));
